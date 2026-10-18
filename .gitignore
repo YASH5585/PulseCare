@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Editor files
+.vscode/
+.idea/
+.DS_Store
+*.local
+
+# TypeScript build information
+*.tsbuildinfo
+
+# Coverage reports
+coverage/
+
+# Operating system files
+Thumbs.db
+Desktop.ini
