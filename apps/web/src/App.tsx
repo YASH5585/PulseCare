@@ -159,7 +159,7 @@ function App() {
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete all ${sessions.length} saved demo sessions? This action cannot be undone.`
+      `Are you sure you want to delete all ${sessions.length} saved demo sessions? This action cannot be undone.`,
     );
 
     if (!confirmed) return;
@@ -169,9 +169,13 @@ function App() {
 
       setSessions([]);
       setSelectedSession(null);
+      setCompareSessionAId("");
+      setCompareSessionBId("");
       setMessage("All saved demo sessions have been deleted.");
     } catch {
-      setMessage("Unable to clear the saved sessions.");
+      setMessage(
+        "Unable to clear the saved sessions. Check browser storage availability.",
+      );
     }
   }
 

@@ -1349,3 +1349,136 @@ tbody tr:last-child td {
     font-size: 23px;
   }
 }
+/* =========================================
+   Phase 7.4 - Enhanced Session Analytics
+   ========================================= */
+
+.analytics-chart-card {
+  margin-top: 24px;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.analytics-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.analytics-chart-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.analytics-chart-title h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.analytics-chart-title p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.analytics-chart {
+  width: 100%;
+  height: 300px;
+  min-width: 0;
+}
+
+.analytics-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: 24px;
+  text-align: center;
+}
+
+.analytics-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 16px;
+  color: #0d9488;
+  background: #f0fdfa;
+  border-radius: 18px;
+}
+
+.analytics-empty-state h4 {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.analytics-empty-state p {
+  max-width: 400px;
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.analytics-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 16px 18px;
+  color: #854d0e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+}
+
+.analytics-disclaimer > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.analytics-disclaimer p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.analytics-disclaimer strong {
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .analytics-chart-card {
+    padding: 16px;
+    margin-top: 18px;
+  }
+
+  .analytics-chart {
+    height: 250px;
+  }
+
+  .analytics-chart-title h3 {
+    font-size: 15px;
+  }
+
+  .analytics-chart-title p {
+    font-size: 12px;
+  }
+
+  .analytics-disclaimer {
+    padding: 14px;
+  }
+}

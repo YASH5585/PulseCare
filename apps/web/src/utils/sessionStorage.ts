@@ -8,10 +8,61 @@ export interface DemoSession {
 
 const STORAGE_KEY = "pulsecare_demo_sessions";
 
-// Retrieve saved demo sessions.
-export function getSessions(): DemoSession[] {
+/**
+ * Validate an individual session record.
+ */
+function isValidSession(item: unknown): item is DemoSession {
+  if (typeof item !== "object" || item === null) {
+    return false;
+  }
+
+  const session = item as Record<string, unknown>;
+
+  return (
+    typeof session.id === "string" &&
+    session.id.trim().length > 0 &&
+    typeof session.date === "string" &&
+    session.date.trim().length > 0 &&
+    Number.isFinite(Date.parse(session.date)) &&
+    typeof session.durationSeconds === "number" &&
+    Number.isFinite(session.durationSeconds) &&
+    session.durationSeconds >= 0 &&
+    typeof session.heartRate === "number" &&
+    Number.isFinite(session.heartRate) &&
+    session.heartRate >= 0 &&
+    session.dataType === "SIMULATED"
+  );
+}
+
+/**
+ * Safely access browser local storage.
+ * Returns null if storage is unavailable.
+ */
+function getStorage(): Storage | null {
   try {
-    const storedData = localStorage.getItem(STORAGE_KEY);
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    return window.localStorage;
+  } catch {
+    console.error("Browser storage is unavailable.");
+    return null;
+  }
+}
+
+/**
+ * Retrieve saved demonstration sessions.
+ */
+export function getSessions(): DemoSession[] {
+  const storage = getStorage();
+
+  if (!storage) {
+    return [];
+  }
+
+  try {
+    const storedData = storage.getItem(STORAGE_KEY);
 
     if (!storedData) {
       return [];
@@ -20,59 +71,141 @@ export function getSessions(): DemoSession[] {
     const parsedData: unknown = JSON.parse(storedData);
 
     if (!Array.isArray(parsedData)) {
+      console.error("Stored session data is not a valid list.");
       return [];
     }
 
-    return parsedData.filter(
-      (item): item is DemoSession =>
-        typeof item.id === "string" &&
-        typeof item.date === "string" &&
-        typeof item.durationSeconds === "number" &&
-        typeof item.heartRate === "number" &&
-        item.dataType === "SIMULATED",
-    );
+    return parsedData.filter(isValidSession);
   } catch {
     console.error("Unable to retrieve demo sessions.");
     return [];
   }
 }
 
-// Save a completed demo session.
+/**
+ * Save a completed demonstration session.
+ *
+ * Throws an error if validation fails or browser storage
+ * cannot save the updated session list.
+ */
 export function saveSession(
   session: DemoSession,
 ): DemoSession[] {
-  const existingSessions = getSessions();
+  if (!isValidSession(session)) {
+    throw new Error(
+      "Invalid demonstration session. The session was not saved.",
+    );
+  }
 
-  const updatedSessions = [
-    session,
-    ...existingSessions.filter(
-      (item) => item.id !== session.id,
-    ),
-  ];
+  const storage = getStorage();
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(updatedSessions),
-  );
+  if (!storage) {
+    throw new Error(
+      "Browser storage is unavailable. The session was not saved.",
+    );
+  }
 
-  return updatedSessions;
+  try {
+    const storedData = storage.getItem(STORAGE_KEY);
+    let existingSessions: DemoSession[] = [];
+
+    if (storedData) {
+      const parsedData: unknown = JSON.parse(storedData);
+
+      if (!Array.isArray(parsedData)) {
+        throw new Error("Stored session data is invalid.");
+      }
+
+      existingSessions = parsedData.filter(isValidSession);
+    }
+
+    const updatedSessions = [
+      session,
+      ...existingSessions.filter(
+        (item) => item.id !== session.id,
+      ),
+    ];
+
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(updatedSessions),
+    );
+
+    return updatedSessions;
+  } catch (error) {
+    console.error("Unable to save demo session.");
+
+    if (error instanceof Error &&
+        error.message === "Stored session data is invalid.") {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to save the session. Check browser storage availability.",
+    );
+  }
 }
 
-// Delete a saved demo session.
+/**
+ * Delete a saved demonstration session.
+ *
+ * Throws an error if browser storage cannot complete
+ * the deletion.
+ */
 export function deleteSession(id: string): DemoSession[] {
-  const updatedSessions = getSessions().filter(
-    (session) => session.id !== id,
-  );
+  if (typeof id !== "string" || id.trim().length === 0) {
+    throw new Error("A valid session ID is required.");
+  }
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(updatedSessions),
-  );
+  const storage = getStorage();
 
-  return updatedSessions;
+  if (!storage) {
+    throw new Error(
+      "Browser storage is unavailable. The session was not deleted.",
+    );
+  }
+
+  try {
+    const storedData = storage.getItem(STORAGE_KEY);
+    let existingSessions: DemoSession[] = [];
+
+    if (storedData) {
+      const parsedData: unknown = JSON.parse(storedData);
+
+      if (!Array.isArray(parsedData)) {
+        throw new Error("Stored session data is invalid.");
+      }
+
+      existingSessions = parsedData.filter(isValidSession);
+    }
+
+    const updatedSessions = existingSessions.filter(
+      (session) => session.id !== id,
+    );
+
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(updatedSessions),
+    );
+
+    return updatedSessions;
+  } catch (error) {
+    console.error("Unable to delete demo session.");
+
+    if (error instanceof Error &&
+        error.message === "Stored session data is invalid.") {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to delete the session. Check browser storage availability.",
+    );
+  }
 }
 
-// Format elapsed seconds as MM:SS.
+/**
+ * Format elapsed seconds as MM:SS.
+ */
 export function formatSessionDuration(
   seconds: number,
 ): string {
