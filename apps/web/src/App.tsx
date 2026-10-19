@@ -112,14 +112,19 @@ function App() {
       return;
     }
 
-    if (sessionSeconds <= 0) {
+    if (!Number.isFinite(sessionSeconds) || sessionSeconds <= 0) {
       setMessage("Run the demo for at least one second before saving.");
       return;
     }
 
+    if (!window.crypto?.randomUUID) {
+      setMessage("Unable to generate a session ID in this browser.");
+      return;
+    }
+
     const newSession: DemoSession = {
-      id: crypto.randomUUID(),
-      date: new Date().toLocaleString(),
+      id: window.crypto.randomUUID(),
+      date: new Date().toISOString(),
       durationSeconds: sessionSeconds,
       heartRate: 72,
       dataType: "SIMULATED",
@@ -130,12 +135,23 @@ function App() {
 
       setSessions(updatedSessions);
       setMessage("Demo session saved successfully.");
-    } catch {
-      setMessage("Unable to save the session in browser storage.");
+    } catch (error) {
+      console.error("Failed to save demo session:", error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to save the session. Please try again.",
+      );
     }
   }
 
   function handleDeleteSession(id: string) {
+    if (typeof id !== "string" || id.trim().length === 0) {
+      setMessage("Cannot delete the session: invalid session ID.");
+      return;
+    }
+
     try {
       const updatedSessions = deleteSession(id);
 
@@ -143,12 +159,27 @@ function App() {
 
       // Close the details modal if its session is deleted.
       setSelectedSession((current) =>
-        current?.id === id ? null : current
+        current?.id === id ? null : current,
       );
 
-      setMessage("Demo session deleted.");
-    } catch {
-      setMessage("Unable to delete the session.");
+      // Clear comparisons if the deleted session was selected.
+      setCompareSessionAId((current) =>
+        current === id ? "" : current,
+      );
+
+      setCompareSessionBId((current) =>
+        current === id ? "" : current,
+      );
+
+      setMessage("Demo session deleted successfully.");
+    } catch (error) {
+      console.error("Failed to delete demo session:", error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete the session. Please try again.",
+      );
     }
   }
 
