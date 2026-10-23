@@ -1482,3 +1482,204 @@ tbody tr:last-child td {
     padding: 14px;
   }
 }
+
+/* PulseCare Dashboard Analytics */
+.pulse-analytics-panel {
+  overflow: hidden;
+}
+
+.analytics-simulated-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #fff5df;
+  color: #95621b;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.pulse-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.pulse-analytics-card {
+  min-width: 0;
+  padding: 17px;
+  background: #f8fafc;
+  border: 1px solid #e8edf1;
+  border-radius: 10px;
+}
+
+.pulse-analytics-label {
+  display: block;
+  color: #82909e;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.pulse-analytics-card > strong {
+  display: block;
+  margin: 11px 0 7px;
+  color: #263d50;
+  font-size: 27px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.pulse-analytics-card > strong small {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.pulse-analytics-note {
+  color: #8b98a5;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.pulse-analytics-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.pulse-analytics-detail {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #e8edf1;
+  border-radius: 10px;
+}
+
+.pulse-analytics-detail h4 {
+  margin: 0 0 8px;
+  color: #2b4052;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.pulse-analytics-detail > p {
+  margin: 0 0 14px;
+  color: #82909e;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.pulse-analytics-empty {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 7px;
+}
+
+.pulse-analytics-error {
+  color: #b42318 !important;
+  overflow-wrap: anywhere;
+}
+
+.pulse-trend-list,
+.pulse-mood-list {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin-top: 15px;
+}
+
+.pulse-trend-row,
+.pulse-mood-row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: #718091;
+  font-size: 10px;
+}
+
+.pulse-trend-row > strong,
+.pulse-mood-row > strong {
+  color: #344b5e;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.pulse-trend-track {
+  height: 8px;
+  overflow: hidden;
+  background: #eaf0f5;
+  border-radius: 20px;
+}
+
+.pulse-trend-bar {
+  height: 100%;
+  background: #4d9bdb;
+  border-radius: inherit;
+  transition: width 250ms ease;
+}
+
+.pulse-mood-bar {
+  height: 100%;
+  background: #55b89a;
+  border-radius: inherit;
+  transition: width 250ms ease;
+}
+
+.pulse-analytics-activity {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.pulse-analytics-activity article {
+  min-width: 0;
+  padding: 15px 17px;
+  background: #f8fafc;
+  border-radius: 9px;
+}
+
+.pulse-analytics-activity article p {
+  margin: 8px 0 0;
+  color: #526779;
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1000px) {
+  .pulse-analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .pulse-analytics-details,
+  .pulse-analytics-activity {
+    grid-template-columns: 1fr;
+  }
+
+  .pulse-analytics-panel {
+    padding: 16px !important;
+  }
+
+  .pulse-analytics-grid {
+    gap: 9px;
+  }
+
+  .pulse-analytics-card {
+    padding: 13px;
+  }
+
+  .pulse-analytics-card > strong {
+    font-size: 23px;
+  }
+
+  .pulse-trend-row,
+  .pulse-mood-row {
+    grid-template-columns: 70px minmax(0, 1fr) auto;
+    gap: 7px;
+  }
+}

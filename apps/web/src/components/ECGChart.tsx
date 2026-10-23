@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import {
   ResponsiveContainer,
@@ -18,11 +18,12 @@ interface ECGPoint {
 interface ECGChartProps {
   isDemoRunning: boolean;
   onDemoStateChange: (running: boolean) => void;
+  onHeartRateChange: (heartRate: number) => void;
   sessionSeconds: number;
   onResetSession: () => void;
 }
 
-// SIMULATED DATA ONLY — not actual ECG sensor readings.
+// SIMULATED DATA ONLY â€” not actual ECG sensor readings.
 function generateECGValue(index: number): number {
   const position = index % 50;
   const baseline = Math.sin(index * 0.2) * 0.025;
@@ -55,16 +56,20 @@ function formatTime(seconds: number): string {
 function ECGChart({
   isDemoRunning,
   onDemoStateChange,
+  onHeartRateChange,
   sessionSeconds,
   onResetSession,
 }: ECGChartProps) {
   const [ecgData, setEcgData] = useState<ECGPoint[]>(createInitialData);
-
+  const [heartRate, setHeartRate] = useState(72);
   // Animate the simulated waveform.
   useEffect(() => {
     if (!isDemoRunning) return;
 
     const interval = window.setInterval(() => {
+      const nextHeartRate = 68 + Math.floor(Math.random() * 13);
+      setHeartRate(nextHeartRate);
+      onHeartRateChange(nextHeartRate);
       setEcgData((previousData) => {
         const lastTime =
           previousData.length > 0
@@ -84,7 +89,7 @@ function ECGChart({
     }, 100);
 
     return () => window.clearInterval(interval);
-  }, [isDemoRunning]);
+  }, [isDemoRunning, onHeartRateChange]);
 
   function handleToggleDemo() {
     if (isDemoRunning) {
@@ -111,7 +116,7 @@ function ECGChart({
           </div>
 
           <p>
-            Illustrative waveform · Not a medical measurement
+            Illustrative waveform Â· Not a medical measurement
           </p>
         </div>
 
@@ -131,7 +136,7 @@ function ECGChart({
           </span>
 
           <div className="ecg-bpm">
-            72 <span>BPM</span>
+            {heartRate} <span>BPM</span>
           </div>
         </div>
 
@@ -218,3 +223,5 @@ function ECGChart({
 }
 
 export default ECGChart;
+
+

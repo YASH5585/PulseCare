@@ -31,12 +31,21 @@ import "./App.css";
 import StatCard from "./components/StatCard";
 import ECGChart from "./components/ECGChart";
 import SessionAnalytics from "./components/SessionAnalytics";
+import HealthJournal from "./components/HealthJournal";
+import LiveMonitoringPage from "./components/LiveMonitoringPage";
+import SessionHistoryPage from "./components/SessionHistoryPage";
+import ReportsPage from "./components/ReportsPage";
+import { fetchJournalEntries, type JournalEntry } from "./services/journalApi";
+import {
+  fetchMonitoringSessions,
+  deleteMonitoringSession,
+  createMonitoringSession,
+  clearSimulatedMonitoringSessions,
+} from "./services/sessionsApi";
 
 import {
-  getSessions,
-  saveSession,
-  deleteSession,
   formatSessionDuration,
+  getSessions,
   type DemoSession,
 } from "./utils/sessionStorage";
 
@@ -53,14 +62,19 @@ const navigation = [
 ];
 
 function App() {
+  const [activePage, setActivePage] = useState("Dashboard");
   const [isDemoRunning, setIsDemoRunning] = useState(false);
+  const [heartRate, setHeartRate] = useState(72);
   const [sessionSeconds, setSessionSeconds] = useState(0);
+  const [isCurrentSessionSaved, setIsCurrentSessionSaved] = useState(false);
   const [sessions, setSessions] = useState<DemoSession[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalAnalyticsError, setJournalAnalyticsError] = useState("");
   const [message, setMessage] = useState("");
 
   const [sessionSearch, setSessionSearch] = useState("");
-  const [durationFilter, setDurationFilter] = useState("all");
-  const [sessionSort, setSessionSort] = useState("newest");
+  const [durationFilter, setDurationFilter] = useState<"all" | "short" | "medium" | "long">("all");
+  const [sessionSort, setSessionSort] = useState<"newest" | "oldest">("newest");
 
   // Phase 7.1: selected session for the details modal.
   const [selectedSession, setSelectedSession] =
@@ -71,7 +85,69 @@ function App() {
   const [compareSessionBId, setCompareSessionBId] = useState("");
 
   useEffect(() => {
-    setSessions(getSessions());
+    let cancelled = false;
+
+    async function loadJournalAnalytics() {
+      try {
+        const entries = await fetchJournalEntries();
+
+        if (cancelled) return;
+
+        setJournalEntries(entries);
+        setJournalAnalyticsError("");
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error("Failed to load journal analytics:", error);
+        setJournalAnalyticsError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load Health Journal insights.",
+        );
+      }
+    }
+
+    void loadJournalAnalytics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSessions() {
+      try {
+        const apiSessions = await fetchMonitoringSessions();
+
+        if (cancelled) return;
+
+        const mappedSessions: DemoSession[] = apiSessions
+          .filter((session) => session.data_type === "SIMULATED")
+          .map((session) => ({
+            id: session.id,
+            date: session.started_at,
+            durationSeconds: session.duration_seconds,
+            heartRate: session.heart_rate,
+            dataType: "SIMULATED",
+          }));
+
+        setSessions(mappedSessions);
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error("Failed to load sessions from PostgreSQL:", error);
+        setSessions(getSessions());
+        setMessage("Could not connect to saved sessions. Showing locally stored history.");
+      }
+    }
+
+    void loadSessions();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -102,11 +178,22 @@ function App() {
   }, [selectedSession]);
 
   function handleToggleDemo(running: boolean) {
+    if (running && !isDemoRunning) {
+      setSessionSeconds(0);
+      setIsCurrentSessionSaved(false);
+    }
+
     setIsDemoRunning(running);
     setMessage("");
   }
 
-  function handleSaveSession() {
+  async function handleSaveSession() {
+    if (isCurrentSessionSaved) {
+      setMessage("This monitoring session has already been saved.");
+      return;
+    }
+
+
     if (isDemoRunning) {
       setMessage("Stop the demo before saving the session.");
       return;
@@ -126,43 +213,76 @@ function App() {
       id: window.crypto.randomUUID(),
       date: new Date().toISOString(),
       durationSeconds: sessionSeconds,
-      heartRate: 72,
+      heartRate,
       dataType: "SIMULATED",
     };
 
     try {
-      const updatedSessions = saveSession(newSession);
+      setMessage("Saving session to PostgreSQL...");
 
-      setSessions(updatedSessions);
-      setMessage("Demo session saved successfully.");
+      await createMonitoringSession({
+        id: newSession.id,
+        startedAt: newSession.date,
+        durationSeconds: newSession.durationSeconds,
+        heartRate: newSession.heartRate,
+        dataType: newSession.dataType,
+      });
+
+      
+      setIsCurrentSessionSaved(true);const apiSessions = await fetchMonitoringSessions();
+
+      const mappedSessions: DemoSession[] = apiSessions
+        .filter((session) => session.data_type === "SIMULATED")
+        .map((session) => ({
+          id: session.id,
+          date: session.started_at,
+          durationSeconds: session.duration_seconds,
+          heartRate: session.heart_rate,
+          dataType: "SIMULATED",
+        }));
+
+      setSessions(mappedSessions);
+      setMessage("Demo session saved successfully to PostgreSQL.");
     } catch (error) {
-      console.error("Failed to save demo session:", error);
+      console.error("Failed to save demo session to PostgreSQL:", error);
 
       setMessage(
         error instanceof Error
-          ? error.message
+          ? `Unable to save the session: ${error.message}`
           : "Unable to save the session. Please try again.",
       );
     }
   }
 
-  function handleDeleteSession(id: string) {
+  async function handleDeleteSession(id: string) {
     if (typeof id !== "string" || id.trim().length === 0) {
       setMessage("Cannot delete the session: invalid session ID.");
       return;
     }
 
     try {
-      const updatedSessions = deleteSession(id);
+      setMessage("Deleting session from PostgreSQL...");
 
-      setSessions(updatedSessions);
+      await deleteMonitoringSession(id);
 
-      // Close the details modal if its session is deleted.
+      const apiSessions = await fetchMonitoringSessions();
+
+      const mappedSessions: DemoSession[] = apiSessions
+        .filter((session) => session.data_type === "SIMULATED")
+        .map((session) => ({
+          id: session.id,
+          date: session.started_at,
+          durationSeconds: session.duration_seconds,
+          heartRate: session.heart_rate,
+          dataType: "SIMULATED",
+        }));
+
+      setSessions(mappedSessions);
+
       setSelectedSession((current) =>
         current?.id === id ? null : current,
       );
 
-      // Clear comparisons if the deleted session was selected.
       setCompareSessionAId((current) =>
         current === id ? "" : current,
       );
@@ -171,41 +291,59 @@ function App() {
         current === id ? "" : current,
       );
 
-      setMessage("Demo session deleted successfully.");
+      setMessage("Demo session deleted successfully from PostgreSQL.");
     } catch (error) {
-      console.error("Failed to delete demo session:", error);
+      console.error("Failed to delete session from PostgreSQL:", error);
 
       setMessage(
         error instanceof Error
-          ? error.message
+          ? `Unable to delete the session: ${error.message}`
           : "Unable to delete the session. Please try again.",
       );
     }
   }
 
-  function handleClearAllSessions() {
+  async function handleClearAllSessions() {
     if (sessions.length === 0) {
-      setMessage("There are no saved sessions to clear.");
+      setMessage("There are no saved simulated sessions to clear.");
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete all ${sessions.length} saved demo sessions? This action cannot be undone.`,
+      `Are you sure you want to delete all ${sessions.length} saved simulated sessions from PostgreSQL? Device sessions will be preserved. This action cannot be undone.`,
     );
 
     if (!confirmed) return;
 
     try {
-      localStorage.removeItem("pulsecare_demo_sessions");
+      setMessage("Clearing simulated sessions from PostgreSQL...");
 
-      setSessions([]);
+      await clearSimulatedMonitoringSessions();
+
+      const apiSessions = await fetchMonitoringSessions();
+
+      const mappedSessions: DemoSession[] = apiSessions
+        .filter((session) => session.data_type === "SIMULATED")
+        .map((session) => ({
+          id: session.id,
+          date: session.started_at,
+          durationSeconds: session.duration_seconds,
+          heartRate: session.heart_rate,
+          dataType: "SIMULATED",
+        }));
+
+      setSessions(mappedSessions);
       setSelectedSession(null);
       setCompareSessionAId("");
       setCompareSessionBId("");
-      setMessage("All saved demo sessions have been deleted.");
-    } catch {
+      setMessage("All simulated sessions have been cleared. Device sessions were preserved.");
+    } catch (error) {
+      console.error("Failed to clear simulated sessions:", error);
+
       setMessage(
-        "Unable to clear the saved sessions. Check browser storage availability.",
+        error instanceof Error
+          ? `Unable to clear simulated sessions: ${error.message}`
+          : "Unable to clear simulated sessions. Please try again.",
       );
     }
   }
@@ -220,9 +358,23 @@ function App() {
   }
 
   function handleResetSession() {
+    if (isDemoRunning) {
+      setMessage("Stop the demo before resetting the session.");
+      return;
+    }
+
+    if (sessionSeconds > 0 && !isCurrentSessionSaved) {
+      const confirmed = window.confirm(
+        "This monitoring session has not been saved. Reset it and discard its current duration?"
+      );
+
+      if (!confirmed) return;
+    }
+
     setIsDemoRunning(false);
     setSessionSeconds(0);
-    setMessage("");
+    setIsCurrentSessionSaved(false);
+    setMessage("Monitoring session reset.");
   }
 
   // Phase 7.1: open the details modal.
@@ -331,6 +483,49 @@ function App() {
     setMessage("");
   }
 
+  const totalSavedSessions = sessions.length;
+
+  const averageHeartRate =
+    totalSavedSessions > 0
+      ? Math.round(
+          sessions.reduce((total, session) => total + session.heartRate, 0) /
+            totalSavedSessions,
+        )
+      : null;
+
+  const totalMonitoringSeconds = sessions.reduce(
+    (total, session) => total + session.durationSeconds,
+    0,
+  );
+
+  const moodDistribution = journalEntries.reduce<Record<string, number>>(
+    (distribution, entry) => {
+      const mood = entry.mood?.trim() || "Unspecified";
+      distribution[mood] = (distribution[mood] ?? 0) + 1;
+      return distribution;
+    },
+    {},
+  );
+
+  const latestSession = sessions.reduce<DemoSession | null>(
+    (latest, session) =>
+      !latest ||
+      new Date(session.date).getTime() > new Date(latest.date).getTime()
+        ? session
+        : latest,
+    null,
+  );
+
+  const latestJournalEntry = journalEntries.reduce<JournalEntry | null>(
+    (latest, entry) =>
+      !latest ||
+      new Date(entry.entry_date).getTime() >
+        new Date(latest.entry_date).getTime()
+        ? entry
+        : latest,
+    null,
+  );
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -348,14 +543,18 @@ function App() {
         <div className="workspace-label">WORKSPACE</div>
 
         <nav className="navigation">
-          {navigation.map((item, index) => {
+          {navigation.map((item) => {
             const Icon = item.icon;
 
             return (
               <button
                 key={item.label}
-                className={`nav-item ${index === 0 ? "active" : ""}`}
+                className={`nav-item ${activePage === item.label ? "active" : ""}`}
                 type="button"
+                onClick={() => {
+                  setActivePage(item.label);
+                  setSelectedSession(null);
+                }}
               >
                 <Icon size={19} />
                 <span>{item.label}</span>
@@ -405,7 +604,7 @@ function App() {
           <div className="breadcrumb">
             <span>Workspace</span>
             <span className="breadcrumb-divider">/</span>
-            <strong>Dashboard</strong>
+            <strong>{activePage}</strong>
           </div>
 
           <div className="topbar-actions">
@@ -431,7 +630,7 @@ function App() {
           </div>
         </header>
 
-        <div className="dashboard-content">
+        <div className="dashboard-content" style={{ display: activePage === "Dashboard" ? "block" : "none" }}>
           <section className="welcome-section">
             <div>
               <div className="eyebrow">
@@ -439,7 +638,7 @@ function App() {
                 YOUR HEALTH OVERVIEW
               </div>
 
-              <h2>Good day! 👋</h2>
+              <h2>Good day!</h2>
 
               <p>
                 Here's an overview of your cardiac monitoring activity.
@@ -478,10 +677,10 @@ function App() {
           <section className="stats-grid">
             <StatCard
               title="Heart Rate"
-              value="72"
+              value={String(heartRate)}
               unit="BPM"
               icon={<Heart size={19} />}
-              description="Simulated reading · Not real"
+              description="Simulated reading Â· Not real"
               status={isDemoRunning ? "active" : "normal"}
             />
 
@@ -519,6 +718,7 @@ function App() {
             <ECGChart
               isDemoRunning={isDemoRunning}
               onDemoStateChange={handleToggleDemo}
+              onHeartRateChange={setHeartRate}
               sessionSeconds={sessionSeconds}
               onResetSession={handleResetSession}
             />
@@ -546,6 +746,148 @@ function App() {
           </section>
 
           <SessionAnalytics sessions={sessions} />
+
+          <section className="panel pulse-analytics-panel" style={{ padding: "24px", marginBottom: "24px" }}>
+            <div className="panel-header" style={{ marginBottom: "20px" }}>
+              <div>
+                <h3>PulseCare Analytics</h3>
+                <p>Insights from saved monitoring sessions and your Health Journal</p>
+              </div>
+              <span className="analytics-simulated-badge">SIMULATED DATA</span>
+            </div>
+
+            <div className="pulse-analytics-grid">
+              <article className="pulse-analytics-card">
+                <span className="pulse-analytics-label">Total Sessions</span>
+                <strong>{totalSavedSessions}</strong>
+                <span className="pulse-analytics-note">Saved monitoring sessions</span>
+              </article>
+
+              <article className="pulse-analytics-card">
+                <span className="pulse-analytics-label">Average Heart Rate</span>
+                <strong>
+                  {averageHeartRate === null ? "—" : averageHeartRate}
+                  {averageHeartRate !== null && <small> BPM</small>}
+                </strong>
+                <span className="pulse-analytics-note">Average of saved session readings</span>
+              </article>
+
+              <article className="pulse-analytics-card">
+                <span className="pulse-analytics-label">Total Monitoring Time</span>
+                <strong>
+                  {Math.floor(totalMonitoringSeconds / 3600)}h{" "}
+                  {Math.floor((totalMonitoringSeconds % 3600) / 60)}m
+                </strong>
+                <span className="pulse-analytics-note">Combined saved session duration</span>
+              </article>
+
+              <article className="pulse-analytics-card">
+                <span className="pulse-analytics-label">Journal Entries</span>
+                <strong>{journalEntries.length}</strong>
+                <span className="pulse-analytics-note">Entries recorded in Health Journal</span>
+              </article>
+            </div>
+
+            <div className="pulse-analytics-details">
+              <article className="pulse-analytics-detail">
+                <h4>Heart Rate Trends</h4>
+                <p>Recorded average readings from your saved sessions. These are simulated readings, not medical measurements.</p>
+
+                {sessions.length === 0 ? (
+                  <p className="pulse-analytics-empty">No saved sessions available yet.</p>
+                ) : (
+                  <div className="pulse-trend-list">
+                    {[...sessions]
+                      .sort(
+                        (a, b) =>
+                          new Date(a.date).getTime() - new Date(b.date).getTime(),
+                      )
+                      .slice(-7)
+                      .map((session) => (
+                        <div className="pulse-trend-row" key={session.id}>
+                          <span>{new Date(session.date).toLocaleDateString()}</span>
+                          <div className="pulse-trend-track">
+                            <div
+                              className="pulse-trend-bar"
+                              style={{
+                                width: `${Math.max(4, Math.min(100, (session.heartRate / 200) * 100))}%`,
+                              }}
+                            />
+                          </div>
+                          <strong>{session.heartRate} BPM</strong>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </article>
+
+              <article className="pulse-analytics-detail">
+                <h4>Health Journal Insights</h4>
+
+                {journalAnalyticsError ? (
+                  <p className="pulse-analytics-error">
+                    Unable to load journal insights: {journalAnalyticsError}
+                  </p>
+                ) : journalEntries.length === 0 ? (
+                  <p className="pulse-analytics-empty">
+                    No journal entries yet. Add an entry in Health Journal to see your insights.
+                  </p>
+                ) : (
+                  <>
+                    <p className="pulse-analytics-note">
+                      Mood distribution across {journalEntries.length} journal entries.
+                    </p>
+                    <div className="pulse-mood-list">
+                      {Object.entries(moodDistribution)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([mood, count]) => (
+                          <div className="pulse-mood-row" key={mood}>
+                            <span>{mood}</span>
+                            <div className="pulse-trend-track">
+                              <div
+                                className="pulse-mood-bar"
+                                style={{
+                                  width: `${(count / journalEntries.length) * 100}%`,
+                                }}
+                              />
+                            </div>
+                            <strong>{count}</strong>
+                          </div>
+                        ))}
+                    </div>
+                  </>
+                )}
+              </article>
+            </div>
+
+            <div className="pulse-analytics-activity">
+              <article>
+                <span className="pulse-analytics-label">Latest Monitoring Session</span>
+                {latestSession ? (
+                  <p>
+                    {new Date(latestSession.date).toLocaleString()} ·{" "}
+                    {latestSession.heartRate} BPM ·{" "}
+                    {Math.floor(latestSession.durationSeconds / 60)}m{" "}
+                    {latestSession.durationSeconds % 60}s
+                  </p>
+                ) : (
+                  <p>No monitoring sessions saved yet.</p>
+                )}
+              </article>
+
+              <article>
+                <span className="pulse-analytics-label">Latest Journal Entry</span>
+                {latestJournalEntry ? (
+                  <p>
+                    {latestJournalEntry.title} ·{" "}
+                    {new Date(latestJournalEntry.entry_date).toLocaleDateString()}
+                  </p>
+                ) : (
+                  <p>No journal entries saved yet.</p>
+                )}
+              </article>
+            </div>
+          </section>
 
           {/* Phase 7.3: Compare two saved demo sessions. */}
           <section className="panel" style={{ padding: "24px", marginBottom: "24px" }}>
@@ -584,7 +926,7 @@ function App() {
                       <option value="">Choose a session</option>
                       {sessions.map((session) => (
                         <option key={session.id} value={session.id}>
-                          {session.date} — {formatSessionDuration(session.durationSeconds)}
+                          {session.date} â€” {formatSessionDuration(session.durationSeconds)}
                         </option>
                       ))}
                     </select>
@@ -601,7 +943,7 @@ function App() {
                       <option value="">Choose a session</option>
                       {sessions.map((session) => (
                         <option key={session.id} value={session.id}>
-                          {session.date} — {formatSessionDuration(session.durationSeconds)}
+                          {session.date} â€” {formatSessionDuration(session.durationSeconds)}
                         </option>
                       ))}
                     </select>
@@ -625,7 +967,7 @@ function App() {
                             <div><span style={{ display: "block", color: "#64748b", fontSize: "11px", marginBottom: "5px" }}>SESSION B</span><strong style={{ color: "#0f766e", fontSize: "15px" }}>{metric.b}</strong></div>
                           </div>
                           <div style={{ borderTop: "1px solid #e2e8f0", marginTop: "13px", paddingTop: "10px", color: "#475569", fontSize: "12px" }}>
-                            Difference (B − A): <strong>{metric.difference}</strong>
+                            Difference (B âˆ’ A): <strong>{metric.difference}</strong>
                           </div>
                         </div>
                       ))}
@@ -714,12 +1056,12 @@ function App() {
 
                 <select
                   value={durationFilter}
-                  onChange={(event) => setDurationFilter(event.target.value)}
+                  onChange={(event) => setDurationFilter(event.target.value as "all" | "short" | "medium" | "long")}
                   aria-label="Filter sessions by duration"
                 >
                   <option value="all">All durations</option>
                   <option value="short">Under 1 minute</option>
-                  <option value="medium">1–5 minutes</option>
+                  <option value="medium">1â€“5 minutes</option>
                   <option value="long">5 minutes or more</option>
                 </select>
               </div>
@@ -729,7 +1071,7 @@ function App() {
 
                 <select
                   value={sessionSort}
-                  onChange={(event) => setSessionSort(event.target.value)}
+                  onChange={(event) => setSessionSort(event.target.value as "newest" | "oldest")}
                   aria-label="Sort sessions"
                 >
                   <option value="newest">Newest first</option>
@@ -835,14 +1177,96 @@ function App() {
           </section>
 
           <footer className="dashboard-footer">
-            <span>PulseCare · Cardiac Health Platform</span>
+            <span>PulseCare Â· Cardiac Health Platform</span>
 
             <span>
               <ShieldCheck size={14} />
-              Educational prototype · Not for diagnosis
+              Educational prototype Â· Not for diagnosis
             </span>
           </footer>
         </div>
+
+        {activePage === "Health Journal" && (
+          <div className="dashboard-content">
+            <HealthJournal />
+          </div>
+        )}
+
+        {activePage === "Live Monitoring" && (
+          <LiveMonitoringPage
+            isDemoRunning={isDemoRunning}
+            heartRate={heartRate}
+            sessionSeconds={sessionSeconds}
+            savedSessionCount={sessions.length}
+            onDemoStateChange={handleToggleDemo}
+            onHeartRateChange={setHeartRate}
+            onResetSession={handleResetSession}
+          />
+        )}
+
+{activePage === "Reports" && (
+  <ReportsPage
+    sessions={sessions}
+    journalEntries={journalEntries}
+    onExportSessions={handleExportSessions}
+  />
+)}
+
+{activePage === "Session History" && (
+  <SessionHistoryPage
+    sessions={sessions}
+    filteredSessions={filteredSessions}
+    sessionSearch={sessionSearch}
+    durationFilter={durationFilter}
+    sessionSort={sessionSort}
+    message={message}
+    onSearchChange={setSessionSearch}
+    onDurationFilterChange={setDurationFilter}
+    onSortChange={setSessionSort}
+    onClearFilters={handleClearFilters}
+    onExportSessions={handleExportSessions}
+    onViewSession={handleViewSession}
+    onDeleteSession={handleDeleteSession}
+    onRefresh={() => {
+      void fetchMonitoringSessions()
+        .then((apiSessions) => {
+          setSessions(
+            apiSessions
+              .filter((session) => session.data_type === "SIMULATED")
+              .map((session) => ({
+                id: session.id,
+                date: session.started_at,
+                durationSeconds: session.duration_seconds,
+                heartRate: session.heart_rate,
+                dataType: "SIMULATED" as const,
+              })),
+          );
+          setMessage("Session history refreshed.");
+        })
+        .catch((error: unknown) => {
+          setMessage(
+            error instanceof Error
+              ? `Unable to refresh session history: ${error.message}`
+              : "Unable to refresh session history.",
+          );
+        });
+    }}
+  />
+)}
+
+        {activePage !== "Dashboard" &&
+          activePage !== "Health Journal" &&
+          activePage !== "Live Monitoring" &&
+  activePage !== "Session History" && (
+            <div className="dashboard-content">
+              <section className="welcome-section">
+                <div>
+                  <h2>{activePage}</h2>
+                  <p>This section is not yet connected to its dedicated page.</p>
+                </div>
+              </section>
+            </div>
+          )}
       </main>
 
       {/* Phase 7.1: Session Details Modal */}
@@ -1226,3 +1650,34 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
