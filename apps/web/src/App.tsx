@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import {
   Activity,
@@ -11,7 +11,6 @@ import {
   Bell,
   Search,
   Menu,
-  Wifi,
   ShieldCheck,
   Clock,
   CalendarDays,
@@ -33,6 +32,7 @@ import ECGChart from "./components/ECGChart";
 import SessionAnalytics from "./components/SessionAnalytics";
 import HealthJournal from "./components/HealthJournal";
 import LiveMonitoringPage from "./components/LiveMonitoringPage";
+import DeviceECGStatus from "./components/DeviceECGStatus";
 import SessionHistoryPage from "./components/SessionHistoryPage";
 import ReportsPage from "./components/ReportsPage";
 import { fetchJournalEntries, type JournalEntry } from "./services/journalApi";
@@ -674,6 +674,7 @@ function App() {
             <span className="preview-badge">DEMO DATA</span>
           </section>
 
+          <DeviceECGStatus />
           <section className="stats-grid">
             <StatCard
               title="Heart Rate"
@@ -703,14 +704,6 @@ function App() {
               icon={<Activity size={19} />}
               description="Saved demo sessions"
               status="normal"
-            />
-
-            <StatCard
-              title="Device Connection"
-              value="Not connected"
-              icon={<Wifi size={19} />}
-              description="Hardware integration pending"
-              status="inactive"
             />
           </section>
 
@@ -1650,6 +1643,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
